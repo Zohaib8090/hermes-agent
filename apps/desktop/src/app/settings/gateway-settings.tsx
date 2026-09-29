@@ -5,14 +5,17 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Tip } from '@/components/ui/tooltip'
 import type { DesktopAuthProvider, DesktopCloudAgent, DesktopCloudOrg, DesktopConnectionProbeResult } from '@/global'
 import { useI18n } from '@/i18n'
 import { ExternalLink } from '@/lib/external-link'
+import { triggerHaptic } from '@/lib/haptics'
 import {
   AlertCircle,
   Check,
   Cloud,
+  Copy,
   FileText,
   Globe,
   HelpCircle,
@@ -20,7 +23,9 @@ import {
   LogIn,
   Monitor,
   RefreshCw,
-  Terminal
+  Smartphone,
+  Terminal,
+  Wifi
 } from '@/lib/icons'
 import { coerceRemoteUrlScheme } from '@/lib/remote-url'
 import { selectableCardClass } from '@/lib/selectable-card'
@@ -58,6 +63,7 @@ export interface GatewaySettingsState {
   // Whether the currently-persisted remote token is stored as plain text on
   // disk (opted-in on a machine without secure storage). Drives the warning banner.
   remoteTokenPlainText: boolean
+  exposeOnNetwork?: boolean
   remoteUrl: string
   cloudOrg: string
   sshHost: string
@@ -79,6 +85,7 @@ const EMPTY_STATE: GatewaySettingsState = {
   remoteTokenSet: false,
   secureTokenStorage: true,
   remoteTokenPlainText: false,
+  exposeOnNetwork: false,
   remoteUrl: '',
   cloudOrg: '',
   sshHost: '',
@@ -206,6 +213,22 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
       cancelled = true
     }
   }, [])
+
+  // Local network IPs for the "Connect from Phone" panel.
+  const [localIps, setLocalIps] = useState<string[]>([])
+  const [lanProxyPort, setLanProxyPort] = useState<number>(9090)
+  useEffect(() => {
+    if (!state.exposeOnNetwork) return
+
+    void window.hermesDesktop
+      ?.getLocalIps?.()
+      .then(ips => setLocalIps(ips ?? []))
+      .catch(() => {})
+    void window.hermesDesktop
+      ?.getLanProxyPort?.()
+      .then(port => { if (port) setLanProxyPort(port) })
+      .catch(() => {})
+  }, [state.exposeOnNetwork])
 
   const setKeychainEncryption = async (on: boolean) => {
     setKeychainEncryptionBusy(true)
@@ -496,6 +519,7 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
 
   const payload = (allowPlainTextToken?: boolean) => ({
     mode: state.mode,
+    exposeOnNetwork: state.exposeOnNetwork,
     remoteAuthMode: authMode,
     remoteToken: authMode === 'token' ? remoteToken.trim() || undefined : undefined,
     remoteUrl: trimmedUrl,
@@ -1175,6 +1199,79 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
           />
         </div>
       </div>
+
+      {state.mode === 'local' && !state.envOverride ? (
+        <div className="mt-5 overflow-hidden rounded-xl border border-(--ui-border) bg-(--ui-surface-raised)">
+          {/* Header row */}
+          <div className="flex items-center justify-between gap-4 px-4 py-3.5">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15">
+                <Smartphone className="size-4 text-violet-500" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold">Connect from Phone</div>
+                <div className="text-[length:var(--conversation-caption-font-size)] text-(--ui-text-secondary)">
+                  Allow the Hermes mobile app to connect over Wi-Fi
+                </div>
+              </div>
+            </div>
+            <div onClick={e => e.stopPropagation()}>
+              <Switch
+                aria-label="Connect from Phone"
+                checked={!!state.exposeOnNetwork}
+                disabled={state.envOverride}
+                onCheckedChange={checked => {
+                  triggerHaptic('selection')
+                  setState(s => ({ ...s, exposeOnNetwork: checked }))
+                }}
+              />
+            </div>
+          </div>
+
+          {/* URL display — only shown when enabled */}
+          {state.exposeOnNetwork ? (
+            <div className="border-t border-(--ui-border) px-4 py-3">
+              {localIps.length > 0 ? (
+                <>
+                  <div className="mb-2 flex items-center gap-1.5 text-[length:var(--conversation-caption-font-size)] text-(--ui-text-secondary)">
+                    <Wifi className="size-3" />
+                    <span>Your phone can connect at:</span>
+                  </div>
+                  <div className="grid gap-1.5">
+                    {localIps.map(ip => (
+                      <div
+                        key={ip}
+                        className="flex items-center justify-between gap-2 rounded-lg bg-(--ui-surface) px-3 py-2"
+                      >
+                        <code className="text-sm font-mono text-violet-400">{`http://${ip}:${lanProxyPort}`}</code>
+                        <button
+                          className="shrink-0 rounded p-1 text-(--ui-text-secondary) transition-colors hover:text-(--ui-text-primary)"
+                          onClick={() =>
+                            void window.hermesDesktop
+                              .writeClipboard(`http://${ip}:${lanProxyPort}`)
+                              .then(() => notify({ message: 'URL copied to clipboard!' }))
+                          }
+                          title="Copy URL"
+                          type="button"
+                        >
+                          <Copy className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
+                    Make sure your phone is on the same Wi-Fi network. Save and reconnect to apply.
+                  </p>
+                </>
+              ) : (
+                <p className="text-[length:var(--conversation-caption-font-size)] text-(--ui-text-secondary)">
+                  No network adapters detected. Connect to Wi-Fi first.
+                </p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Hermes Cloud panel: one portal sign-in, then a discovered-agent picker
           whose selection drives the silent per-agent cascade + a cloud

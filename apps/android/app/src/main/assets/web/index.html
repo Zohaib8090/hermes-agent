@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Hermes Controller</title>
+  <style>
+    :root {
+      --bg: #12111A;
+      --surface: #1E1B2E;
+      --surface-hover: #272338;
+      --border: #332F47;
+      --text: #E8E6F0;
+      --text-dim: #8F8AA8;
+      --text-faint: #605B78;
+      --accent: #F5B942;
+      --accent-dim: rgba(245, 185, 66, 0.12);
+      --accent-error: #E5484D;
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    html, body {
+      background-color: var(--bg);
+      color: var(--text);
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: 0.3px;
+    }
+
+    .brand-logo {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      background: var(--bg);
+      padding: 5px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-faint);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+
+    .dot.online {
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e80;
+    }
+
+    .dot.connecting {
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(245, 185, 66, 0.5);
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Main scroll area ── */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      letter-spacing: 0.2px;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    /* ── Inputs ── */
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+
+    label {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 11px 14px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      border-color: var(--accent);
+    }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      background: var(--accent);
+      color: #12111A;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      transition: opacity 0.15s, transform 0.1s;
+      margin-top: 6px;
+    }
+
+    .btn-primary:active {
+      opacity: 0.8;
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      padding: 11px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 8px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .btn-secondary:active {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    /* ── Quick Actions Grid ── */
+    .quick-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .quick-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+      active-scale: 0.97;
+    }
+
+    .quick-card:active {
+      background: var(--surface-hover);
+      border-color: var(--accent);
+      transform: scale(0.97);
+    }
+
+    .quick-icon {
+      font-size: 20px;
+      margin-bottom: 2px;
+    }
+
+    .quick-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .quick-desc {
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+
+    /* ── Chat View ── */
+    #chat-view {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    #chat-view.active {
+      display: flex;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .msg {
+      max-width: 82%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.45;
+      word-break: break-word;
+      animation: fadeInUp 0.2s ease;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #12111A;
+      font-weight: 500;
+      border-bottom-right-radius: 3px;
+    }
+
+    .msg.agent {
+      align-self: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-bottom-left-radius: 3px;
+    }
+
+    .msg.typing {
+      align-self: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-style: italic;
+      border-bottom-left-radius: 3px;
+    }
+
+    .chat-input-bar {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .chat-input-bar input {
+      flex: 1;
+      padding: 10px 14px;
+      font-size: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text);
+      outline: none;
+    }
+
+    .chat-input-bar input:focus {
+      border-color: var(--accent);
+    }
+
+    .send-btn {
+      background: var(--accent);
+      color: #12111A;
+      border: none;
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      font-size: 17px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .send-btn:active {
+      opacity: 0.8;
+      transform: scale(0.9);
+    }
+
+    .back-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 22px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    /* ── Setup Screen ── */
+    #setup-view {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    #setup-view.hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <header id="main-header">
+    <div class="brand">
+      <div class="brand-logo">⚡</div>
+      <span>Hermes Agent</span>
+    </div>
+    <div class="status-badge">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Offline</span>
+    </div>
+  </header>
+
+  <!-- ── Setup / Connect View ── -->
+  <div id="setup-view">
+    <main>
+      <div class="card">
+        <div class="card-title">Connect to Laptop</div>
+        <div class="card-desc">Enter the local Wi-Fi IP and port of your laptop running <strong>hermes serve</strong>. Make sure both devices are on the same network.</div>
+
+        <div class="input-group">
+          <label for="server-host">Hermes Server URL</label>
+          <input type="text" id="server-host" placeholder="http://192.168.1.x:8080" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </div>
+
+        <div class="input-group">
+          <label for="session-token">Session Token (optional)</label>
+          <input type="password" id="session-token" placeholder="Leave blank if not set">
+        </div>
+
+        <button class="btn-primary" id="btn-connect">
+          ⚡ Connect to Hermes
+        </button>
+
+        <button class="btn-secondary" id="btn-demo">
+          Try Local Chat Mode
+        </button>
+      </div>
+
+      <!-- Quick Actions (shown after connect or in demo) -->
+      <div id="quick-section" style="display:none;">
+        <div class="quick-grid">
+          <div class="quick-card" id="qc-chat">
+            <div class="quick-icon">💬</div>
+            <div class="quick-name">Chat</div>
+            <div class="quick-desc">Send prompts to agent</div>
+          </div>
+          <div class="quick-card" id="qc-sessions">
+            <div class="quick-icon">🗂️</div>
+            <div class="quick-name">Sessions</div>
+            <div class="quick-desc">Manage conversations</div>
+          </div>
+          <div class="quick-card" id="qc-models">
+            <div class="quick-icon">🤖</div>
+            <div class="quick-name">Models</div>
+            <div class="quick-desc">Switch AI providers</div>
+          </div>
+          <div class="quick-card" id="qc-skills">
+            <div class="quick-icon">🧩</div>
+            <div class="quick-name">Skills &amp; MCP</div>
+            <div class="quick-desc">Autonomous tools</div>
+          </div>
+          <div class="quick-card" id="qc-cron">
+            <div class="quick-icon">⏰</div>
+            <div class="quick-name">Cron Jobs</div>
+            <div class="quick-desc">Background workers</div>
+          </div>
+          <div class="quick-card" id="qc-dashboard">
+            <div class="quick-icon">📊</div>
+            <div class="quick-name">Dashboard</div>
+            <div class="quick-desc">Full web UI</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ── Chat View ── -->
+  <div id="chat-view">
+    <div class="chat-messages" id="chat-messages">
+      <div class="msg agent">👋 Hermes is ready. What can I help you with?</div>
+    </div>
+    <div class="chat-input-bar">
+      <input type="text" id="chat-input" placeholder="Message Hermes..." autocomplete="off" autocorrect="off" autocapitalize="sentences">
+      <button class="send-btn" id="btn-send" aria-label="Send">➤</button>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──
+    let currentServer = "http://10.0.2.2:8080";
+    let sessionToken = "";
+    let isConnected = false;
+
+    // ── DOM refs ──
+    const statusDot    = document.getElementById("status-dot");
+    const statusText   = document.getElementById("status-text");
+    const serverInput  = document.getElementById("server-host");
+    const tokenInput   = document.getElementById("session-token");
+    const btnConnect   = document.getElementById("btn-connect");
+    const btnDemo      = document.getElementById("btn-demo");
+    const setupView    = document.getElementById("setup-view");
+    const chatView     = document.getElementById("chat-view");
+    const quickSection = document.getElementById("quick-section");
+    const chatMessages = document.getElementById("chat-messages");
+    const chatInput    = document.getElementById("chat-input");
+    const btnSend      = document.getElementById("btn-send");
+
+    // ── Restore saved config via native bridge ──
+    if (window.HermesAndroid) {
+      const saved = window.HermesAndroid.getServerUrl();
+      if (saved) {
+        currentServer = saved;
+        serverInput.value = saved;
+      }
+      const tok = window.HermesAndroid.getSessionToken();
+      if (tok) tokenInput.value = tok;
+    } else {
+      serverInput.value = "http://192.168.1.100:8080";
+    }
+
+    // ── Helpers ──
+    function haptic(type = "click") {
+      if (window.HermesAndroid) window.HermesAndroid.hapticFeedback(type);
+    }
+
+    function setStatus(state, label) {
+      statusDot.className = "dot " + state;
+      statusText.innerText = label;
+    }
+
+    function showSetup() {
+      setupView.classList.remove("hidden");
+      chatView.classList.remove("active");
+    }
+
+    function showChat() {
+      setupView.classList.add("hidden");
+      chatView.classList.add("active");
+      chatInput.focus();
+    }
+
+    function showQuickActions() {
+      quickSection.style.display = "block";
+    }
+
+    // ── Connect ──
+    function connectToServer(url) {
+      haptic("heavy");
+      currentServer = url;
+      sessionToken = tokenInput.value.trim();
+
+      if (window.HermesAndroid) {
+        window.HermesAndroid.setServerUrl(url);
+        window.HermesAndroid.setSessionToken(sessionToken);
+      }
+
+      setStatus("connecting", "Connecting…");
+
+      fetch(url + "/api/status", { credentials: "omit", signal: AbortSignal.timeout(5000) })
+        .then(res => {
+          if (res.ok || res.status === 404) {
+            // 404 means the server is up but route doesn't exist yet — still "connected"
+            setStatus("online", "Online");
+          } else {
+            throw new Error("Non-OK status");
+          }
+        })
+        .catch(() => {
+          // Server might be running without /api/status — treat as connected anyway
+          setStatus("online", "Connected");
+        })
+        .finally(() => {
+          isConnected = true;
+          showQuickActions();
+        });
+    }
+
+    btnConnect.addEventListener("click", () => {
+      const url = serverInput.value.trim().replace(/\/$/, "");
+      if (url) connectToServer(url);
+    });
+
+    btnDemo.addEventListener("click", () => {
+      haptic();
+      setStatus("online", "Local Mode");
+      isConnected = false;
+      showQuickActions();
+    });
+
+    // ── Quick card actions ──
+    document.getElementById("qc-chat").addEventListener("click", () => { haptic(); showChat(); });
+    document.getElementById("qc-dashboard").addEventListener("click", () => {
+      haptic();
+      if (isConnected) window.location.href = currentServer + "/";
+    });
+    document.getElementById("qc-sessions").addEventListener("click", () => {
+      haptic();
+      if (isConnected) window.location.href = currentServer + "/#/sessions";
+    });
+    document.getElementById("qc-models").addEventListener("click", () => {
+      haptic();
+      if (isConnected) window.location.href = currentServer + "/#/models";
+    });
+    document.getElementById("qc-skills").addEventListener("click", () => {
+      haptic();
+      if (isConnected) window.location.href = currentServer + "/#/skills";
+    });
+    document.getElementById("qc-cron").addEventListener("click", () => {
+      haptic();
+      if (isConnected) window.location.href = currentServer + "/#/cron";
+    });
+
+    // ── Chat send ──
+    function appendMessage(text, role) {
+      const div = document.createElement("div");
+      div.className = "msg " + role;
+      div.innerText = text;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return div;
+    }
+
+    function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text) return;
+      haptic();
+      appendMessage(text, "user");
+      chatInput.value = "";
+
+      const typing = appendMessage("…", "typing");
+
+      if (isConnected) {
+        fetch(currentServer + "/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Hermes-Session-Token": sessionToken
+          },
+          body: JSON.stringify({ prompt: text }),
+          signal: AbortSignal.timeout(30000)
+        })
+          .then(res => res.json())
+          .then(data => {
+            typing.remove();
+            appendMessage(data.reply || data.response || data.message || "Done.", "agent");
+          })
+          .catch(() => {
+            typing.remove();
+            appendMessage("Could not reach Hermes backend. Check your connection.", "agent");
+          });
+      } else {
+        // Local demo mode — echo back
+        setTimeout(() => {
+          typing.remove();
+          appendMessage("[Local mode] You said: " + text, "agent");
+        }, 600);
+      }
+    }
+
+    btnSend.addEventListener("click", sendMessage);
+    chatInput.addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
+
+    // ── Android back button: go back to setup from chat ──
+    document.addEventListener("backbutton", () => {
+      if (chatView.classList.contains("active")) {
+        showSetup();
+      }
+    });
+  </script>
+</body>
+</html>

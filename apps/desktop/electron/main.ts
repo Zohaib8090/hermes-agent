@@ -209,6 +209,7 @@ import {
 } from './gateway-file-download'
 import { startGatewaysAfterUpdateAbort, stopGatewayBeforeUpdate } from './gateway-stop-before-update'
 import { probeGatewayWebSocket } from './gateway-ws-probe'
+import { LAN_PROXY_PORT, startLanProxy, stopLanProxy } from './lan-proxy'
 import { registerGitIpc } from './git-ipc'
 import { desktopBackendSpawnEnv, guestOnboardingEnabled, skipIntroEnabled } from './guest-onboarding'
 import { readAndConsumeHandoffResult } from './handoff-result'
@@ -670,7 +671,7 @@ if (IS_WINDOWS) {
       app.relaunch({ args: buildNoSandboxRelaunchArgs(process.argv.slice(1)) })
       void exitAfterBackendShutdown(0)
     } catch (error) {
-      console.error(`[hermes] --no-sandbox relaunch failed: ${error?.message || error}`)
+      console.error(`[hermes] --no-sandbox relaunch failed: ${(error as any)?.message || error}`)
     }
   })
 }
@@ -1413,6 +1414,11 @@ function registerMediaProtocol() {
 
 let mainWindow = null
 const backendConnectionState = createBackendConnectionState<ReturnType<typeof spawn>, any>()
+
+// The active local backend port, captured on startup. Used to dynamically
+// start the LAN proxy without requiring a full backend restart when the
+// "Connect from Phone" toggle is flipped.
+let currentLocalBackendPort: number | null = null
 
 const localBackendLifecycle = createLocalBackendLifecycle<ReturnType<typeof spawn>>({
   stopChild: child => {
@@ -9958,12 +9964,13 @@ function coerceDesktopConnectionConfig(input: any = {}, existing = readDesktopCo
 
       return {
         mode: existing.mode === 'ssh' || modeIsRemoteLike(existing.mode) ? existing.mode : 'local',
+        exposeOnNetwork: typeof input.exposeOnNetwork === 'boolean' ? input.exposeOnNetwork : (existing.exposeOnNetwork ?? false),
         remote: existing.remote || {},
         profiles
       }
     }
 
-    return { mode: 'ssh', remote: sshBlock, profiles: existing.profiles || {} }
+    return { mode: 'ssh', exposeOnNetwork: typeof input.exposeOnNetwork === 'boolean' ? input.exposeOnNetwork : (existing.exposeOnNetwork ?? false), remote: sshBlock, profiles: existing.profiles || {} }
   }
 
   if (key) {
@@ -9989,6 +9996,7 @@ function coerceDesktopConnectionConfig(input: any = {}, existing = readDesktopCo
 
     return {
       mode: existing.mode === 'ssh' || modeIsRemoteLike(existing.mode) ? existing.mode : 'local',
+      exposeOnNetwork: typeof input.exposeOnNetwork === 'boolean' ? input.exposeOnNetwork : (existing.exposeOnNetwork ?? false),
       remote: existing.remote || {},
       profiles
     }
@@ -10001,7 +10009,12 @@ function coerceDesktopConnectionConfig(input: any = {}, existing = readDesktopCo
       : { url: remoteUrl ? normalizeRemoteBaseUrl(remoteUrl) : remoteUrl, authMode, token: nextToken }
 
   // Preserve per-profile overrides when saving the global connection.
-  return { mode, remote: nextRemote, profiles: existing.profiles || {} }
+  return { 
+    mode, 
+    exposeOnNetwork: typeof input.exposeOnNetwork === 'boolean' ? input.exposeOnNetwork : (existing.exposeOnNetwork ?? false),
+    remote: nextRemote, 
+    profiles: existing.profiles || {} 
+  }
 }
 
 // Build an SSH connection block from a save payload, preserving an
@@ -12556,6 +12569,8 @@ async function runPoolBackendStart(profile, entry, opts: { forceLocal?: boolean;
   // --profile wins over the inherited HERMES_HOME env (see _apply_profile_override
   // step 3 in hermes_cli/main.py), so the child re-homes to this profile.
   // --port 0: the OS assigns an ephemeral port; the child announces it on stdout.
+  // Always bind to loopback so desktop token auth works; LAN exposure is
+  // handled by the TCP proxy in lan-proxy.ts when exposeOnNetwork is on.
   const backendArgs = ['--profile', profile, 'serve', '--host', '127.0.0.1', '--port', '0']
   const backend = await ensureRuntime(resolveHermesBackend(backendArgs))
   // Route old runtimes (no `serve`) through the legacy `dashboard --no-open`.
@@ -12641,9 +12656,9 @@ async function runPoolBackendStart(profile, entry, opts: { forceLocal?: boolean;
   child.stderr.on('data', rememberLog)
 
   let ready = false
-  let rejectStart = null
+  let rejectStart: ((reason?: any) => void) | null = null
 
-  const startFailed = new Promise((_resolve, reject) => {
+  const startFailed = new Promise<never>((_resolve, reject) => {
     rejectStart = reject
   })
 
@@ -12676,6 +12691,7 @@ async function runPoolBackendStart(profile, entry, opts: { forceLocal?: boolean;
 
   // Discover the ephemeral port the child bound to
   const port = await Promise.race([portAnnouncement, startFailed])
+  currentLocalBackendPort = port
 
   if (readyFile) {
     fs.unlink(readyFile, () => {})
@@ -12961,6 +12977,9 @@ async function runHermesStart() {
 
     const token = crypto.randomBytes(32).toString('base64url')
     // --port 0: the OS assigns an ephemeral port; the child announces it on stdout.
+    // Always bind to loopback; LAN exposure is handled by the TCP proxy in lan-proxy.ts.
+    const config = readDesktopConnectionConfig()
+    const exposeOnNetwork = !!config.exposeOnNetwork
     const backendArgs = ['serve', '--host', '127.0.0.1', '--port', '0']
     // Pin the desktop's chosen profile via the global --profile flag. This is
     // deterministic (it wins over the sticky ~/.hermes/active_profile file) and
@@ -13107,9 +13126,9 @@ async function runHermesStart() {
     hermesProcess.stdout.on('data', rememberLog)
     hermesProcess.stderr.on('data', rememberLog)
     let backendReady = false
-    let rejectBackendStart = null
+    let rejectBackendStart: ((reason?: any) => void) | null = null
 
-    const backendStartFailed = new Promise((_resolve, reject) => {
+    const backendStartFailed = new Promise<never>((_resolve, reject) => {
       rejectBackendStart = reject
     })
 
@@ -13175,6 +13194,7 @@ async function runHermesStart() {
 
     // Discover the ephemeral port the child bound to
     const port = await Promise.race([portAnnouncement, backendStartFailed])
+    currentLocalBackendPort = port
 
     if (readyFile) {
       fs.unlink(readyFile, () => {})
@@ -13199,6 +13219,22 @@ async function runHermesStart() {
       throw new Error(
         `Local Hermes backend is HTTP-reachable but the WebSocket (/api/ws) rejected the session token: ${wsProbe.reason}`
       )
+    }
+
+    // Start the LAN TCP proxy if the user enabled "Connect from Phone".
+    // The backend itself always binds to loopback (auth works); the proxy
+    // exposes 0.0.0.0:LAN_PROXY_PORT and forwards to 127.0.0.1:<port>.
+    if (exposeOnNetwork) {
+      try {
+        await startLanProxy(port)
+        rememberLog(`[lan-proxy] Listening on 0.0.0.0:${LAN_PROXY_PORT} -> 127.0.0.1:${port}`)
+      } catch (proxyErr: any) {
+        // Non-fatal: desktop still works; just can't reach from phone.
+        rememberLog(`[lan-proxy] Failed to start (port ${LAN_PROXY_PORT} may be in use): ${proxyErr.message}`)
+      }
+    } else {
+      // Ensure proxy is stopped when toggle is off.
+      await stopLanProxy().catch(() => {})
     }
 
     updateBootProgress({
@@ -16208,8 +16244,47 @@ ipcMain.handle('hermes:connection-config:apply', async (_event, payload) => {
       })
   })
 
+  // Reconcile the LAN proxy immediately after apply completes — don't wait for
+  // a full backend restart. The proxy only makes sense for local-mode: remote/
+  // cloud/ssh connections have their own routing, and the loopback backend that
+  // the proxy forwards to doesn't exist in those modes.
+  if (!key && config.mode === 'local') {
+    const shouldExpose = !!config.exposeOnNetwork
+    if (shouldExpose) {
+      // Re-read the live backend port from the running proxy or the boot state.
+      // startLanProxy is idempotent when the port hasn't changed.
+      if (currentLocalBackendPort) {
+        await startLanProxy(currentLocalBackendPort).catch(err =>
+          rememberLog(`[lan-proxy] Failed to start on apply: ${err.message}`)
+        )
+      }
+    } else {
+      await stopLanProxy().catch(() => {})
+    }
+  }
+
   return sanitizeDesktopConnectionConfig(config, payload?.profile)
 })
+
+// Returns all non-internal IPv4 addresses on this machine (Wi-Fi, Ethernet, Tailscale, etc.)
+// Used by the renderer's "Connect from Phone" panel to display the connection URL.
+ipcMain.handle('hermes:network:local-ips', () => {
+  const ifaces = os.networkInterfaces()
+  const ips: string[] = []
+  for (const iface of Object.values(ifaces)) {
+    if (!iface) continue
+    for (const addr of iface) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        ips.push(addr.address)
+      }
+    }
+  }
+  return ips
+})
+
+// Returns the fixed port the LAN TCP proxy listens on. The UI uses this
+// to display the correct connection URL when "Connect from Phone" is enabled.
+ipcMain.handle('hermes:network:lan-proxy-port', () => LAN_PROXY_PORT)
 
 ipcMain.handle('hermes:profile:get', async () => ({ profile: readActiveDesktopProfile() }))
 // Persistence-only sibling of hermes:profile:set: records the profile the

@@ -200,6 +200,11 @@ declare global {
       saveConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>
       applyConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>
       testConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionTestResult>
+      // Returns all non-internal IPv4 addresses (Wi-Fi, Ethernet, Tailscale…)
+      // for the "Connect from Phone" panel to display the connection URL.
+      getLocalIps: () => Promise<string[]>
+      // Returns the port number the LAN TCP proxy listens on.
+      getLanProxyPort: () => Promise<number>
       // Opt-in OS-keychain encryption for stored gateway secrets (default
       // off). `get` never touches the OS keychain; `set` re-encodes stored
       // secrets and can throw when the keychain is unusable.
@@ -880,6 +885,7 @@ export interface DesktopConnectionConfig {
   // The profile this config describes, or null for the global/default
   // connection. Per-profile entries let a profile point at its own backend.
   profile: null | string
+  exposeOnNetwork?: boolean
   remoteAuthMode: 'oauth' | 'token'
   remoteOauthConnected: boolean
   remoteTokenPreview: string | null
@@ -910,6 +916,7 @@ export interface DesktopConnectionConfigInput {
   // When set, the save/apply/test targets this profile's per-profile remote
   // override instead of the global connection.
   profile?: null | string
+  exposeOnNetwork?: boolean
   remoteAuthMode?: 'oauth' | 'token'
   remoteToken?: string
   // When true and secure (OS-keychain) storage is unavailable, persist the

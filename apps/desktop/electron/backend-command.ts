@@ -17,7 +17,9 @@
  */
 export function serveBackendArgs(profile?: string) {
   const head = profile ? ['--profile', profile] : []
-
+  // Always bind to loopback with an ephemeral port (0) so the desktop's
+  // token-based WebSocket auth works (loopback mode: no auth gate).
+  // LAN exposure is handled separately via the TCP proxy in lan-proxy.ts.
   return [...head, 'serve', '--host', '127.0.0.1', '--port', '0']
 }
 

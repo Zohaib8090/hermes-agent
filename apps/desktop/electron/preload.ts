@@ -212,6 +212,11 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   saveConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:save', payload),
   applyConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:apply', payload),
   testConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:test', payload),
+  // Returns all non-internal IPv4 addresses on this machine so the "Connect
+  // from Phone" panel can display the ready-to-use connection URL.
+  getLocalIps: () => ipcRenderer.invoke('hermes:network:local-ips'),
+  // Returns the port the LAN TCP proxy listens on (for Connect from Phone).
+  getLanProxyPort: () => ipcRenderer.invoke('hermes:network:lan-proxy-port'),
   // Opt-in OS-keychain encryption for stored gateway secrets (default off —
   // see secret-storage-policy.ts). get never touches the OS keychain.
   getSecretStorageEncryption: () => ipcRenderer.invoke('hermes:secret-storage:get'),

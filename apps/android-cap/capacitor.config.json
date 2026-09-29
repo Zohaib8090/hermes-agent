@@ -1,0 +1,24 @@
+{
+  "appId": "com.hermes.android",
+  "appName": "Hermes",
+  "webDir": "../desktop/dist",
+  "server": {
+    "cleartext": true,
+    "allowNavigation": ["http://*", "ws://*", "wss://*"]
+  },
+  "android": {
+    "buildOptions": {
+      "releaseType": "APK"
+    }
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#12111A"
+    },
+    "Keyboard": {
+      "resize": "body",
+      "resizeOnFullScreen": true
+    }
+  }
+}

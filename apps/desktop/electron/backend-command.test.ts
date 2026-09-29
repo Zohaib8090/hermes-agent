@@ -12,6 +12,10 @@ test('serveBackendArgs pins a profile when provided', () => {
   assert.deepEqual(serveBackendArgs('worker'), ['--profile', 'worker', 'serve', '--host', '127.0.0.1', '--port', '0'])
 })
 
+test('serveBackendArgs exposes on network when requested', () => {
+  assert.deepEqual(serveBackendArgs(undefined, true), ['serve', '--host', '0.0.0.0', '--port', '9090'])
+})
+
 test('dashboardFallbackArgs rewrites serve -> dashboard --no-open, keeping the -m prefix', () => {
   const serve = ['-m', 'hermes_cli.main', 'serve', '--host', '127.0.0.1', '--port', '0']
   assert.deepEqual(dashboardFallbackArgs(serve), [

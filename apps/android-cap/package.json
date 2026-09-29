@@ -1,0 +1,25 @@
+{
+  "name": "hermes-android",
+  "version": "1.0.0",
+  "description": "Hermes Agent Android app — Capacitor shell wrapping the Hermes desktop web UI",
+  "private": true,
+  "scripts": {
+    "build:web": "cd ../desktop && npm run build",
+    "sync": "npx cap sync android",
+    "open": "npx cap open android",
+    "build": "npm run build:web && npm run sync",
+    "run:android": "npx cap run android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/keyboard": "8.0.5",
+    "@capacitor/preferences": "8.0.1",
+    "@capacitor/status-bar": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "typescript": "^7.0.2"
+  }
+}
